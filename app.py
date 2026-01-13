@@ -6,7 +6,7 @@ from io import BytesIO
 # --- App Configuration ---
 st.set_page_config(page_title="Brand Analysis Uplift App", layout="wide")
 st.title("Brand Analysis Uplift App")
-st.caption("Upload CSV → Filter Price → Deduplicate → Uplift → KPIs → Export")
+st.caption("Upload CSV → Deduplicate → Uplift → KPIs → Export")
 
 # --- 1. File Upload ---
 file = st.file_uploader("Upload Helium 10 Xray CSV", type=["csv"])
@@ -22,35 +22,8 @@ if file:
     sales_col   = st.sidebar.selectbox("Sales (Units) column", options=cols, index=cols.index("Sales") if "Sales" in cols else 0)
     revenue_col = st.sidebar.selectbox("Revenue column", options=cols, index=cols.index("Revenue") if "Revenue" in cols else 0)
     
-    # Auto-detect price column (handling the double space in 'Price  ₹')
-    price_default_idx = 0
-    for i, col in enumerate(cols):
-        if "Price" in col:
-            price_default_idx = i + 1
-            break
-    price_col = st.sidebar.selectbox("Price Selector column", options=["<None>"] + cols, index=price_default_idx)
-
     st.sidebar.divider()
-    st.sidebar.header("Step 2: Filter & Uplift")
-    
-    # Pre-clean price for slider range
-    temp_work = df.copy()
-    price_min, price_max = 0.0, 10000.0
-    
-    if price_col != "<None>":
-        temp_work[price_col] = (temp_work[price_col].astype(str).str.replace(',', '', regex=False)
-                                .str.extract(r'([-+]?\d*\.?\d+)')[0].astype(float))
-        price_min = float(temp_work[price_col].min()) if not temp_work[price_col].isna().all() else 0.0
-        price_max = float(temp_work[price_col].max()) if not temp_work[price_col].isna().all() else 10000.0
-        
-        # The Price Selector Slider
-        selected_price_range = st.sidebar.slider(
-            f"Filter by Price ({price_col})",
-            min_value=0.0,
-            max_value=price_max,
-            value=(price_min, price_max),
-            step=1.0
-        )
+    st.sidebar.header("Step 2: Uplift Settings")
     
     uplift_pct = st.sidebar.number_input("Uplift percentage (%)", min_value=0.0, max_value=1000.0, value=30.0, step=1.0)
 
@@ -63,19 +36,10 @@ if file:
 
         # Clean numerics for relevant columns
         cols_to_clean = [sales_col, revenue_col]
-        if price_col != "<None>":
-            cols_to_clean.append(price_col)
-
         for c in cols_to_clean:
             if c in work:
                 work[c] = (work[c].astype(str).str.replace(',', '', regex=False)
                                  .str.extract(r'([-+]?\d*\.?\d+)')[0].astype(float))
-
-        # Filter by Price Range if selector is used
-        if price_col != "<None>":
-            initial_count = len(work)
-            work = work[(work[price_col] >= selected_price_range[0]) & (work[price_col] <= selected_price_range[1])]
-            st.write(f"Filtered out {initial_count - len(work)} products outside price range.")
 
         # Remove rows with missing essential data
         work = work.dropna(subset=[brand_col, sales_col, revenue_col])
